@@ -23,7 +23,6 @@
         maxMessage = $.getSetIniDbString('diceSettings', 'maxMessage', 'POGGERS'),
         niceMessage = $.getSetIniDbString('diceSettings', 'niceMessage', 'DataFace');
 
-        $.consoleLn('starting dice module');
         $.sql('CREATE TABLE IF NOT EXISTS ' + tableName + ' ( "roll" INTEGER NOT NULL, "user" TEXT NOT NULL, "timestamp" INTEGER NOT NULL );', []);
 
     function rollDice( min, max ) {
@@ -76,13 +75,17 @@
                 //$.getLocalTimeString('yyyy-mm-dd'), parseInt(num));
 
             } else if(action.equalsIgnoreCase('stats')){
+                if(actionArg1){
+                    username = $.usernameResolveIgnoreEx(actionArg1);
+                    sender = username.toLowerCase();
+                }
                 let result = $.sql( 'SELECT COUNT(roll) FILTER(WHERE roll = ' + minRoll + '), COUNT(roll) FILTER(WHERE roll = ' + maxRoll + '), COUNT(roll) FILTER(WHERE roll = 69), COUNT(roll), AVG(roll) FROM dicerolls WHERE user = ?;', [sender]),
                     min = result[0][0],
                     max = result[0][1],
                     nice = result[0][2],
                     total = result[0][3],
                     avg = result[0][4];
-                    $.say('Stats for ' + username + ': ' + minRoll + ' rolls: ' + min + '. ' + maxRoll + ' rolls: ' + max + '. Nice rolls: ' + nice + '. Average roll: ' + parseFloat(avg).toFixed(2) + '. Total rolls: ' + total + '.');
+                    $.say('Stats for ' + username + ': ' + minRoll + 's: ' + min + '. ' + maxRoll + 's: ' + max + '. Nice rolls: ' + nice + '. Average: ' + parseFloat(avg).toFixed(2) + '. Total rolls: ' + total + '.');
                     return;
 
             }
