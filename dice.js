@@ -91,7 +91,7 @@
             }
          
         } else if(command.equalsIgnoreCase('dicestats')){
-            let result = $.sql( 'SELECT min(roll), max(roll), COUNT(roll) FILTER(WHERE roll = 69), COUNT(roll) FROM dicerolls WHERE datetime((timestamp/1000), "unixepoch", "localtime") >= CURRENT_DATE;', []),
+            let result = $.sql( 'SELECT min(roll), max(roll), COUNT(roll) FILTER(WHERE roll = 69), COUNT(roll) FROM dicerolls WHERE datetime((timestamp/1000), "unixepoch", "localtime") >= date("now", "localtime");', []),
                 min = result[0][0],
                 max = result[0][1],
                 nice = result[0][2],
