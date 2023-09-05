@@ -103,7 +103,7 @@
                 return;
             }
             if(nice > 0){
-                messsage += ' There were also ' + nice + ' nice rolls DataFace';
+                message += ' There were also ' + nice + ' nice rolls DataFace';
             }
             $.say(message);
         }
