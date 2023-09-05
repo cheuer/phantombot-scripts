@@ -37,7 +37,8 @@
             args = event.getArgs(),
             action = args[0]
             actionArg1 = args[1],
-            actionArg2 = args[2];
+            actionArg2 = args[2],
+            actionArg3 = args[3];
 
         if(command.equalsIgnoreCase('dice')){
             if(!action){
@@ -47,10 +48,12 @@
 
             if(action.equalsIgnoreCase('roll')){
                 if(!actionArg1){
-                    $.say('Usage: !dice roll <user>');
+                    $.say('This can only be called from the channel points handler');
                     return;
                 }
                 let user = actionArg1,
+                    redeemableId = actionArg2,
+                    redemptionId = actionArg3,
                     roll = rollDice( minRoll, maxRoll ),
                     message = '';
 
@@ -68,6 +71,7 @@
                 }
 
                 $.say(message);
+                $.channelpoints.updateRedemptionStatusFulfilled(redeemableId, redemptionId);
                 return;
 
 
