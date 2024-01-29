@@ -42,7 +42,7 @@
 
         if(command.equalsIgnoreCase('dice')){
             if(!action){
-                $.say('Use the channel point redemption to roll the dice, or try !dicestats or !dice stats');
+                $.say('Use the channel point redemption to roll the dice, or try one of these commands: !dicestats !dice stats');
                 return;
             }
 
@@ -84,6 +84,7 @@
                     sender = username.toLowerCase();
                 }
                 let result = $.sql( 'SELECT COUNT(roll) FILTER(WHERE roll = ' + minRoll + '), COUNT(roll) FILTER(WHERE roll = ' + maxRoll + '), COUNT(roll) FILTER(WHERE roll = 69), COUNT(roll), AVG(roll) FROM dicerolls WHERE user = ?;', [sender]),
+                    // dailyresult = $.sql( 'SELECT COUNT(roll) FILTER(WHERE roll = ' + minRoll + '), COUNT(roll) FILTER(WHERE roll = ' + maxRoll + '), COUNT(roll) FILTER(WHERE roll = 69), COUNT(roll), AVG(roll) FROM dicerolls WHERE user = ? AND datetime((timestamp/1000), "unixepoch", "localtime") >= date("now", "localtime");', [sender] )
                     min = result[0][0],
                     max = result[0][1],
                     nice = result[0][2],
