@@ -23,6 +23,7 @@
         maxMessage = $.getSetIniDbString('diceSettings', 'maxMessage', 'POGGERS'),
         niceMessage = $.getSetIniDbString('diceSettings', 'niceMessage', 'DataFace');
 
+    // $.sql('DROP TABLE IF EXISTS dicerolls');
     $.sql('CREATE TABLE IF NOT EXISTS ' + tableName + ' ( "roll" INTEGER NOT NULL, "user" TEXT NOT NULL, "timestamp" TIMESTAMP WITH TIME ZONE NOT NULL );', []);
 
     function rollDice( min, max ) {
@@ -74,17 +75,13 @@
                 $.channelpoints.updateRedemptionStatusFulfilled(redeemableId, redemptionId);
                 return;
 
-
-                // in case I need to parse the timestamp later
-                //$.getLocalTimeString('yyyy-mm-dd'), parseInt(num));
-
             } else if(action.equalsIgnoreCase('stats')){
                 if(actionArg1){
                     username = $.usernameResolveIgnoreEx(actionArg1);
                     sender = username.toLowerCase();
                 }
-                let result = $.sql( 'SELECT COUNT("roll") FILTER(WHERE "roll" = ' + minRoll + '), COUNT("roll") FILTER(WHERE "roll" = ' + maxRoll + '), COUNT("roll") FILTER(WHERE "roll" = 69), COUNT("roll"), AVG("roll") FROM ' + tableName + ' WHERE user = ?;', [sender]),
-                    // dailyresult = $.sql( 'SELECT COUNT("roll") FILTER(WHERE "roll" = ' + minRoll + '), COUNT("roll") FILTER(WHERE "roll" = ' + maxRoll + '), COUNT("roll") FILTER(WHERE "roll" = 69), COUNT("roll"), AVG("roll") FROM ' + tableName + ' WHERE user = ? AND datetime((timestamp/1000), "unixepoch", "localtime") >= date("now", "localtime");', [sender] )
+                let result = $.sql( 'SELECT COUNT("roll") FILTER(WHERE "roll" = ' + minRoll + '), COUNT("roll") FILTER(WHERE "roll" = ' + maxRoll + '), COUNT("roll") FILTER(WHERE "roll" = 69), COUNT("roll"), AVG("roll") FROM ' + tableName + ' WHERE "user" = ?;', [sender]),
+                    // dailyresult = $.sql( 'SELECT COUNT("roll") FILTER(WHERE "roll" = ' + minRoll + '), COUNT("roll") FILTER(WHERE "roll" = ' + maxRoll + '), COUNT("roll") FILTER(WHERE "roll" = 69), COUNT("roll"), AVG("roll") FROM ' + tableName + ' WHERE "user" = ? AND datetime((timestamp/1000), "unixepoch", "localtime") >= date("now", "localtime");', [sender] )
                     min = result[0][0],
                     max = result[0][1],
                     nice = result[0][2],
@@ -96,7 +93,7 @@
             }
          
         } else if(command.equalsIgnoreCase('dicestats')){
-            let result = $.sql( 'SELECT min("roll"), max("roll"), COUNT("roll") FILTER(WHERE "roll" = 69), COUNT("roll") FROM ' + tableName + ' WHERE "timestamp"::date >= CURRENT_DATE;', []),
+            let result = $.sql( 'SELECT min("roll"), max("roll"), COUNT("roll") FILTER(WHERE "roll" = 69), COUNT("roll") FROM ' + tableName + ' WHERE "timestamp" >= CURRENT_DATE;', []),
                 min = result[0][0],
                 max = result[0][1],
                 nice = result[0][2],
