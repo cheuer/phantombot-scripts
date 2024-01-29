@@ -23,7 +23,7 @@
         maxMessage = $.getSetIniDbString('diceSettings', 'maxMessage', 'POGGERS'),
         niceMessage = $.getSetIniDbString('diceSettings', 'niceMessage', 'DataFace');
 
-    // $.sql('DROP TABLE IF EXISTS dicerolls');
+    // $.sql('DROP TABLE IF EXISTS dicerolls', []);
     $.sql('CREATE TABLE IF NOT EXISTS ' + tableName + ' ( "roll" INTEGER NOT NULL, "user" TEXT NOT NULL, "timestamp" TIMESTAMP WITH TIME ZONE NOT NULL );', []);
 
     function rollDice( min, max ) {
