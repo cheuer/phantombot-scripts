@@ -18,11 +18,10 @@
 ( function() {
     let tableName = 'phantombot_diceRolls',
         minRoll = $.getSetIniDbNumber('diceSettings', 'minRoll', 1),
-        maxRoll = $.getSetIniDbNumber('diceSettings', 'maxRoll', 100)
-        minMessage = $.getSetIniDbString('diceSettings', 'minMessage', 'Sadge'),
-        maxMessage = $.getSetIniDbString('diceSettings', 'maxMessage', 'POGGERS'),
-        niceMessage = $.getSetIniDbString('diceSettings', 'niceMessage', 'DataFace');
-
+        maxRoll = $.getSetIniDbNumber('diceSettings', 'maxRoll', 100),
+        messages = JSON.parse($.getSetIniDbString('diceSettings', 'messages', '{}'));
+    
+    $.consoleLn('Loaded dice messages: ' + JSON.stringify(messages));
     // $.sql('DROP TABLE IF EXISTS dicerolls', []);
     $.sql('CREATE TABLE IF NOT EXISTS ' + tableName + ' ( "roll" INTEGER NOT NULL, "user" TEXT NOT NULL, "timestamp" TIMESTAMP WITH TIME ZONE NOT NULL );', []);
 
@@ -61,14 +60,8 @@
                 $.sql('INSERT INTO ' + tableName + '("roll", "user", "timestamp") VALUES( ?, ?, CURRENT_TIMESTAMP);', [ roll, user.toLowerCase() ]);
 
                 message += user + ' rolled ' + roll;
-                if(roll == minRoll){
-                    message += ' ' + minMessage;
-                }
-                if(roll == maxRoll){
-                    message += ' ' + maxMessage;
-                }
-                if(roll == 69){
-                    message += ' ' + niceMessage;
+                if(messages[roll]){
+                    message += ' ' + messages[roll];
                 }
 
                 $.say(message);
@@ -90,6 +83,22 @@
                     $.say('Stats for ' + username + ': ' + minRoll + 's: ' + min + '. ' + maxRoll + 's: ' + max + '. Nice rolls: ' + nice + '. Average: ' + parseFloat(avg).toFixed(2) + '. Total rolls: ' + total + '.');
                     return;
 
+            } else if(action.equalsIgnoreCase('message')){
+                if(!actionArg1){
+                    $.say('Usage: !dice message [number] [message]');
+                    return;
+                }
+
+                if(!actionArg2){
+                    delete messages[actionArg1];
+                } else{
+                    argsString = args.slice(2).join(' ');
+                    messages[actionArg1] = argsString;
+                }
+
+                $.setIniDbString('diceSettings', 'messages', JSON.stringify(messages));
+                $.consoleLn('Saved dice messages: ' + JSON.stringify(messages));
+                $.say('Dice messages updated');
             }
          
         } else if(command.equalsIgnoreCase('dicestats')){
@@ -117,6 +126,7 @@
         $.registerChatCommand('./custom/dice.js', 'dicestats', $.PERMISSION.Viewer);
         $.registerChatSubcommand('dice', 'roll', $.PERMISSION.Admin);
         $.registerChatSubcommand('dice', 'stats', $.PERMISSION.Viewer);
+        $.registerChatSubcommand('dice', 'message', $.PERMISSION.Mod);
     } );
 
 } )();
