@@ -16,14 +16,14 @@
  */
 
 ( function() {
-    let tableName = 'dicerolls',
+    let tableName = 'phantombot_diceRolls',
         minRoll = $.getSetIniDbNumber('diceSettings', 'minRoll', 1),
         maxRoll = $.getSetIniDbNumber('diceSettings', 'maxRoll', 100)
         minMessage = $.getSetIniDbString('diceSettings', 'minMessage', 'Sadge'),
         maxMessage = $.getSetIniDbString('diceSettings', 'maxMessage', 'POGGERS'),
         niceMessage = $.getSetIniDbString('diceSettings', 'niceMessage', 'DataFace');
 
-        $.sql('CREATE TABLE IF NOT EXISTS ' + tableName + ' ( "roll" INTEGER NOT NULL, "user" TEXT NOT NULL, "timestamp" INTEGER NOT NULL );', []);
+    $.sql('CREATE TABLE IF NOT EXISTS ' + tableName + ' ( "roll" INTEGER NOT NULL, "user" TEXT NOT NULL, "timestamp" TIMESTAMP WITH TIME ZONE NOT NULL );', []);
 
     function rollDice( min, max ) {
         return Math.floor( Math.random() * ( max - min + 1 ) ) + min;
@@ -47,7 +47,7 @@
             }
 
             if(action.equalsIgnoreCase('roll')){
-                if(!actionArg1){
+                if(!actionArg1 || !actionArg2 || !actionArg3){
                     $.say('This can only be called from the channel points handler');
                     return;
                 }
@@ -57,7 +57,7 @@
                     roll = rollDice( minRoll, maxRoll ),
                     message = '';
 
-                $.sql('INSERT INTO ' + tableName + '(roll, user, timestamp) VALUES( ?, ?, ?);', [ roll, user.toLowerCase(), $.systemTime() ]);
+                $.sql('INSERT INTO ' + tableName + '("roll", "user", "timestamp") VALUES( ?, ?, CURRENT_TIMESTAMP);', [ roll, user.toLowerCase() ]);
 
                 message += user + ' rolled ' + roll;
                 if(roll == minRoll){
@@ -83,8 +83,8 @@
                     username = $.usernameResolveIgnoreEx(actionArg1);
                     sender = username.toLowerCase();
                 }
-                let result = $.sql( 'SELECT COUNT(roll) FILTER(WHERE roll = ' + minRoll + '), COUNT(roll) FILTER(WHERE roll = ' + maxRoll + '), COUNT(roll) FILTER(WHERE roll = 69), COUNT(roll), AVG(roll) FROM dicerolls WHERE user = ?;', [sender]),
-                    // dailyresult = $.sql( 'SELECT COUNT(roll) FILTER(WHERE roll = ' + minRoll + '), COUNT(roll) FILTER(WHERE roll = ' + maxRoll + '), COUNT(roll) FILTER(WHERE roll = 69), COUNT(roll), AVG(roll) FROM dicerolls WHERE user = ? AND datetime((timestamp/1000), "unixepoch", "localtime") >= date("now", "localtime");', [sender] )
+                let result = $.sql( 'SELECT COUNT("roll") FILTER(WHERE "roll" = ' + minRoll + '), COUNT("roll") FILTER(WHERE "roll" = ' + maxRoll + '), COUNT("roll") FILTER(WHERE "roll" = 69), COUNT("roll"), AVG("roll") FROM ' + tableName + ' WHERE user = ?;', [sender]),
+                    // dailyresult = $.sql( 'SELECT COUNT("roll") FILTER(WHERE "roll" = ' + minRoll + '), COUNT("roll") FILTER(WHERE "roll" = ' + maxRoll + '), COUNT("roll") FILTER(WHERE "roll" = 69), COUNT("roll"), AVG("roll") FROM ' + tableName + ' WHERE user = ? AND datetime((timestamp/1000), "unixepoch", "localtime") >= date("now", "localtime");', [sender] )
                     min = result[0][0],
                     max = result[0][1],
                     nice = result[0][2],
@@ -96,7 +96,7 @@
             }
          
         } else if(command.equalsIgnoreCase('dicestats')){
-            let result = $.sql( 'SELECT min(roll), max(roll), COUNT(roll) FILTER(WHERE roll = 69), COUNT(roll) FROM dicerolls WHERE datetime((timestamp/1000), "unixepoch", "localtime") >= date("now", "localtime");', []),
+            let result = $.sql( 'SELECT min("roll"), max("roll"), COUNT("roll") FILTER(WHERE "roll" = 69), COUNT("roll") FROM ' + tableName + ' WHERE "timestamp"::date >= CURRENT_DATE;', []),
                 min = result[0][0],
                 max = result[0][1],
                 nice = result[0][2],
