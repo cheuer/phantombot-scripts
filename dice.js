@@ -99,6 +99,20 @@
                 $.setIniDbString('diceSettings', 'messages', JSON.stringify(messages));
                 $.consoleLn('Saved dice messages: ' + JSON.stringify(messages));
                 $.say('Dice messages updated');
+            } else if(action.equalsIgnoreCase('setminroll')){
+                if(!actionArg1){
+                    $.say('Usage: !dice setminroll [number]. Current min: ' + minRoll);
+                    return;
+                }
+                $.setIniDbNumber('diceSettings', 'minRoll', actionArg1);
+                $.say('Min roll set to ' + parseInt(actionArg1));
+            } else if(action.equalsIgnoreCase('setmaxroll')){
+                if(!actionArg1){
+                    $.say('Usage: !dice setmaxroll [number]. Current max: ' + maxRoll);
+                    return;
+                }
+                $.setIniDbNumber('diceSettings', 'maxRoll', actionArg1);
+                $.say('Max roll set to ' + parseInt(actionArg1));
             }
          
         } else if(command.equalsIgnoreCase('dicestats')){
@@ -127,6 +141,8 @@
         $.registerChatSubcommand('dice', 'roll', $.PERMISSION.Admin);
         $.registerChatSubcommand('dice', 'stats', $.PERMISSION.Viewer);
         $.registerChatSubcommand('dice', 'message', $.PERMISSION.Mod);
+        $.registerChatSubcommand('dice', 'setminroll', $.PERMISSION.Admin);
+        $.registerChatSubcommand('dice', 'setmaxroll', $.PERMISSION.Admin);
     } );
 
 } )();
