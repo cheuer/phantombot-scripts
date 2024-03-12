@@ -61,3 +61,39 @@ All of these can be preceded by !bk or !bl, doesn't matter
   Turns on and off automatic guessing by the bot.
 
 ## dice.js
+
+### Installation
+1. Put dice.js in the PhantomBot/scripts directory somewhere
+1. In the dashboard under Loyalty > Channel Points, make sure they are enabled
+1. Add a Redeemable (under the Redeemables tab) with the default settings
+1. Add a Reward (under the Rewards tab)
+    * Choose the redeemable created in the previous step
+    * Enter this for the response: `(command dice roll (cpdisplayname) (cpredeemableid) (cpredemptionid))`
+
+### Commands
+
+* !dice
+
+    Prints basic usage info for users
+
+* !dice stats `username`
+
+    Prints overall roll stats for the user specified or current user if none provided
+
+* !dice message `number` `message`
+
+    Adds the `message` text as a custom message that will be printed when `number` is rolled
+
+* !dice setminroll `number`
+
+    Sets the minimum roll
+
+* !dice setmaxroll `number`
+
+    Sets the maximum roll
+
+* !dicestats
+
+    Prints daily roll stats based on the system time
+
+By default, all viewers can use `!dice` and `!dicestats`. Only the streamer can use `setminroll` and `setmaxroll`. Any mod can use `message`. These permissions can be customized in the dashboard if desired.
