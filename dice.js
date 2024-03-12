@@ -128,7 +128,11 @@
                 return;
             }
             if(nice > 0){
-                message += ' There were also ' + nice + ' nice rolls DataFace';
+                message += ' There were also ' + nice + ' nice rolls';
+                
+                if(messages[69]){
+                    message += ' ' + messages[69];
+                }
             }
             $.say(message);
         }
