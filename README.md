@@ -61,6 +61,7 @@ All of these can be preceded by !bk or !bl, doesn't matter
   Turns on and off automatic guessing by the bot.
 
 ## dice.js
+A dice-rolling game utilizing channel points
 
 ### Installation
 1. **IMPORTANT** This module uses custom SQL scripts and so it requires that you are using the H2 datastore. This has been the default since v3.8.0.0 (April 1, 2023) but if your bot is older you will probably need to switch to it.
