@@ -129,7 +129,8 @@
     function print_leaderboard() {
         var message = 'Leaderboard: ',
             leaderboard = $.inidb.GetKeyList( 'alttpr_winners', '' ),
-            sortedLeaderboard = [];
+            sortedLeaderboard = [],
+            output = [];
 
         for( i = 0; i < leaderboard.length; i++ ) {
             sortedLeaderboard.push( { name: leaderboard[i], value: $.inidb.GetInteger( 'alttpr_winners', '', leaderboard[i] ) } );
@@ -140,10 +141,11 @@
             if( i > 0 ) {
                 message += ', ';
             }
-            message += sortedLeaderboard[i].name + ': ' + sortedLeaderboard[i].value;
+            output.push( sortedLeaderboard[i].name + ': ' + sortedLeaderboard[i].value );
         }
 
-        $.say( message );
+        // $.say( message );
+        $.paginateArray(output, 'NULL', ', ', false, null, 0);
     }
 
     function random_guess( min, max ) {
