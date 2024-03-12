@@ -4,6 +4,9 @@ This is a collection of scripts for [PhantomBot](https://github.com/PhantomBot/P
 ## alttpr.js
 This script is for running a GTBK / Agahnim blue ball guessing game for A Link to the Past Randomizer.
 
+### Installation
+Just copy alttpr.js to somewhere under the PhantomBot/scripts directory. I like to put it in a folder named "custom" but that isn't actually required.
+
 ### Main Functions
 
 * !bk or !bk start
@@ -56,8 +59,5 @@ All of these can be preceded by !bk or !bl, doesn't matter
 * !bk guess
 
   Turns on and off automatic guessing by the bot.
-
-### Installation
-Just copy alttpr.js to somewhere under the PhantomBot/scripts directory. I like to put it in a folder named "custom" but that isn't actually required.
 
 ## dice.js
