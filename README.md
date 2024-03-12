@@ -63,6 +63,16 @@ All of these can be preceded by !bk or !bl, doesn't matter
 ## dice.js
 
 ### Installation
+1. **IMPORTANT** This module uses custom SQL scripts and so it requires that you are using the H2 datastore. This has been the default since v3.8.0.0 (April 1, 2023) but if your bot is older you will probably need to switch to it.
+    * Shut down the bot
+    * BACK UP ALL OF THE BOT FILES JUST IN CASE
+    * Open botlogin.txt
+    * Look for a line starting with `datastore=`
+    * Change this to `datastore=h2store2`
+    * Save the file
+    * Start the bot
+    * It will then migrate the data, and should show progress in the command window
+
 1. Put dice.js in the PhantomBot/scripts directory somewhere
 1. In the dashboard under Loyalty > Channel Points, make sure they are enabled
 1. Add a Redeemable (under the Redeemables tab) with the default settings
