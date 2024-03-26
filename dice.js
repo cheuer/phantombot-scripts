@@ -116,12 +116,16 @@
             }
          
         } else if(command.equalsIgnoreCase('dicestats')){
-            let result = $.sql( 'SELECT min("roll"), max("roll"), COUNT("roll") FILTER(WHERE "roll" = 69), COUNT("roll") FROM ' + tableName + ' WHERE "timestamp" >= CURRENT_DATE;', []),
+            let result = $.sql( 'SELECT min("roll"), max("roll"), COUNT("roll") FILTER(WHERE "roll" = 69), COUNT("roll"), MEDIAN("roll"), STDDEV_POP("roll"), MODE("roll"), AVG("roll")  FROM ' + tableName + ' WHERE "timestamp" >= CURRENT_DATE;', []),
                 min = result[0][0],
                 max = result[0][1],
                 nice = result[0][2],
                 total = result[0][3],
-                message = 'There have been ' + total + ' dice rolls today, ranging from ' + min + ' to ' + max + '.';
+                med = result[0][4],
+                stddev = result[0][5],
+                mode = result[0][6],
+                avg = result[0][7],
+                message = 'There have been ' + total + ' dice rolls today, ranging from ' + min + ' to ' + max + '. Average: ' + parseFloat(avg).toFixed(2) + ', median: ' + med + ', mode: ' + mode + ', stddev: ' + parseFloat(stddev).toFixed(2) + '.';
 
             if(total == 0){
                 $.say('No dice have been rolled yet today!');
