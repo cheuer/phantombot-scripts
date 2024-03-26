@@ -73,14 +73,17 @@
                     username = $.usernameResolveIgnoreEx(actionArg1);
                     sender = username.toLowerCase();
                 }
-                let result = $.sql( 'SELECT COUNT("roll") FILTER(WHERE "roll" = ' + minRoll + '), COUNT("roll") FILTER(WHERE "roll" = ' + maxRoll + '), COUNT("roll") FILTER(WHERE "roll" = 69), COUNT("roll"), AVG("roll") FROM ' + tableName + ' WHERE "user" = ?;', [sender]),
+                let result = $.sql( 'SELECT COUNT("roll") FILTER(WHERE "roll" = ' + minRoll + '), COUNT("roll") FILTER(WHERE "roll" = ' + maxRoll + '), COUNT("roll") FILTER(WHERE "roll" = 69), COUNT("roll"), AVG("roll"), MEDIAN("roll"), STDDEV_POP("roll"), MODE("roll") FROM ' + tableName + ' WHERE "user" = ?;', [sender]),
                     // dailyresult = $.sql( 'SELECT COUNT("roll") FILTER(WHERE "roll" = ' + minRoll + '), COUNT("roll") FILTER(WHERE "roll" = ' + maxRoll + '), COUNT("roll") FILTER(WHERE "roll" = 69), COUNT("roll"), AVG("roll") FROM ' + tableName + ' WHERE "user" = ? AND datetime((timestamp/1000), "unixepoch", "localtime") >= date("now", "localtime");', [sender] )
                     min = result[0][0],
                     max = result[0][1],
                     nice = result[0][2],
                     total = result[0][3],
-                    avg = result[0][4];
-                    $.say('Stats for ' + username + ': ' + minRoll + 's: ' + min + '. ' + maxRoll + 's: ' + max + '. Nice rolls: ' + nice + '. Average: ' + parseFloat(avg).toFixed(2) + '. Total rolls: ' + total + '.');
+                    avg = result[0][4],
+                    med = result[0][5],
+                    stddev = result[0][6],
+                    mode = result[0][7];
+                    $.say('Stats for ' + username + ': ' + minRoll + 's: ' + min + '. ' + maxRoll + 's: ' + max + '. Nice rolls: ' + nice + '. Average: ' + parseFloat(avg).toFixed(2) + ', median: ' + med + ', mode: ' + mode + ', stddev: ' + parseFloat(stddev).toFixed(2) + '. Total rolls: ' + total + '.');
                     return;
 
             } else if(action.equalsIgnoreCase('message')){
@@ -99,6 +102,7 @@
                 $.setIniDbString('diceSettings', 'messages', JSON.stringify(messages));
                 $.consoleLn('Saved dice messages: ' + JSON.stringify(messages));
                 $.say('Dice messages updated');
+
             } else if(action.equalsIgnoreCase('setminroll')){
                 if(!actionArg1){
                     $.say('Usage: !dice setminroll [number]. Current min: ' + minRoll);
@@ -106,6 +110,7 @@
                 }
                 $.setIniDbNumber('diceSettings', 'minRoll', actionArg1);
                 $.say('Min roll set to ' + parseInt(actionArg1));
+                
             } else if(action.equalsIgnoreCase('setmaxroll')){
                 if(!actionArg1){
                     $.say('Usage: !dice setmaxroll [number]. Current max: ' + maxRoll);
