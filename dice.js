@@ -19,8 +19,22 @@
     let tableName = 'phantombot_diceRolls',
         minRoll = $.getSetIniDbNumber('diceSettings', 'minRoll', 1),
         maxRoll = $.getSetIniDbNumber('diceSettings', 'maxRoll', 100),
-        messages = JSON.parse($.getSetIniDbString('diceSettings', 'messages', '{}'));
-    
+        messages = JSON.parse($.getSetIniDbString('diceSettings', 'messages', '{}')),
+        dailyMin = maxRoll + 1,
+        dailyMax = minRoll - 1;
+
+    // In-memory daily tracking for long-running process
+    let currentDailyDate = (new Date()).toISOString().slice(0,10);
+
+    function ensureDailyReset() {
+        let today = (new Date()).toISOString().slice(0,10);
+        if (today !== currentDailyDate) {
+            currentDailyDate = today;
+            dailyMin = maxRoll + 1;
+            dailyMax = minRoll - 1;
+        }
+    }
+
     $.consoleLn('Loaded dice messages: ' + JSON.stringify(messages));
     // $.sql('DROP TABLE IF EXISTS dicerolls', []);
     $.sql('CREATE TABLE IF NOT EXISTS ' + tableName + ' ( "roll" INTEGER NOT NULL, "user" TEXT NOT NULL, "timestamp" TIMESTAMP WITH TIME ZONE NOT NULL );', []);
@@ -33,12 +47,15 @@
         let command = event.getCommand(),
             sender = event.getSender(),
             username = $.usernameResolveIgnoreEx(sender),
-            arguments = event.getArguments(),
+            eventArguments = event.getArguments(),
             args = event.getArgs(),
-            action = args[0]
+            action = args[0],
             actionArg1 = args[1],
             actionArg2 = args[2],
             actionArg3 = args[3];
+
+        // Ensure the daily min/max are for today (in-memory)
+        ensureDailyReset();
 
         if(command.equalsIgnoreCase('dice')){
             if(!action){
@@ -62,6 +79,18 @@
                 message += user + ' rolled ' + roll;
                 if(messages[roll]){
                     message += ' ' + messages[roll];
+                }
+
+                if(roll < dailyMin && roll > dailyMax){
+                    dailyMin = roll;
+                    dailyMax = roll;
+                    message += ' That\'s the first roll for today!';
+                } else if(roll < dailyMin){
+                    dailyMin = roll;
+                    message += ' That\'s a new low for today!';
+                } else if(roll > dailyMax){
+                    dailyMax = roll;
+                    message += ' That\'s a new high for today!';
                 }
 
                 $.say(message);
@@ -110,7 +139,7 @@
                 }
                 $.setIniDbNumber('diceSettings', 'minRoll', actionArg1);
                 $.say('Min roll set to ' + parseInt(actionArg1));
-                
+
             } else if(action.equalsIgnoreCase('setmaxroll')){
                 if(!actionArg1){
                     $.say('Usage: !dice setmaxroll [number]. Current max: ' + maxRoll);
@@ -119,7 +148,7 @@
                 $.setIniDbNumber('diceSettings', 'maxRoll', actionArg1);
                 $.say('Max roll set to ' + parseInt(actionArg1));
             }
-         
+
         } else if(command.equalsIgnoreCase('dicestats')){
             let result = $.sql( 'SELECT min("roll"), max("roll"), COUNT("roll") FILTER(WHERE "roll" = 69), COUNT("roll"), MEDIAN("roll"), STDDEV_POP("roll"), MODE("roll"), AVG("roll")  FROM ' + tableName + ' WHERE "timestamp" >= CURRENT_DATE;', []),
                 min = result[0][0],
@@ -138,7 +167,7 @@
             }
             if(nice > 0){
                 message += ' There were also ' + nice + ' nice rolls';
-                
+
                 if(messages[69]){
                     message += ' ' + messages[69];
                 }
