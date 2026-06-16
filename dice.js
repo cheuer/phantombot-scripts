@@ -94,7 +94,9 @@
                 }
 
                 $.say(message);
-                $.channelpoints.updateRedemptionStatusFulfilled(redeemableId, redemptionId);
+                setTimeout(function() {
+                    $.channelpoints.updateRedemptionStatusFulfilled(redeemableId, redemptionId);
+                }, 50);
                 return;
 
             } else if(action.equalsIgnoreCase('stats')){
