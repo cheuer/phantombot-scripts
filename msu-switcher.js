@@ -55,7 +55,8 @@
 
     function updateReward(id, title, cost, enabled, paused, cooldown) {
         return checkResponse($.helix.updateCustomReward(id, title, cost, enabled, paused, null, null, null,
-            null, null, null, null, cooldown === null ? null : true, cooldown, null), 'Update reward ' + id);
+            false, null, false, null,
+            cooldown === null ? null : true, cooldown, null), 'Update reward ' + id);
     }
 
     function createReward(title, cost, cooldown) {

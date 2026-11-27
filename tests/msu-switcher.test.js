@@ -220,7 +220,7 @@ function harness(initialState, initialRewards = [], initialFiles = [], options =
                 const call = { operation: 'create', id, title, cost, enabled, args };
                 calls.push(call);
                 if (failure(call) || titleConflict(id, title)) return failedResponse();
-                rewards.set(id, { id, title, cost, enabled, cooldown: args[8] });
+                rewards.set(id, { id, title, cost, enabled, cooldown: args[8], perStreamLimitEnabled: args[3], perUserLimitEnabled: args[5] });
                 return response(id);
             },
             updateCustomReward: (id, title, cost, enabled, paused, ...args) => {
@@ -233,6 +233,8 @@ function harness(initialState, initialRewards = [], initialFiles = [], options =
                 if (cost !== null) reward.cost = cost;
                 if (enabled !== null) reward.enabled = enabled;
                 if (paused !== null) reward.paused = paused;
+                if (args[3] !== null) reward.perStreamLimitEnabled = args[3];
+                if (args[5] !== null) reward.perUserLimitEnabled = args[5];
                 if (args[8] !== null) reward.cooldown = args[8];
                 return response(id);
             }
@@ -356,6 +358,37 @@ test('setup swaps titles and reuses disabled slots after shrinking the pack list
         ['MSU: Third', true], ['MSU: Second', true], ['MSU: First', true]
     ]);
     assert.equal(bot.calls.filter((call) => call.operation === 'create').length, 3);
+});
+
+test('reward creation and updates disable per-stream and per-user limits', () => {
+    const bot = harness();
+    bot.command('cost', '500');
+    bot.command('cooldown', '60');
+    bot.command('setup', 'First,', 'Second');
+
+    assert.ok([...bot.rewards.values()].every((reward) => reward.perUserLimitEnabled === false));
+    assert.ok([...bot.rewards.values()].every((reward) => reward.perStreamLimitEnabled === false));
+    assert.ok(bot.calls.filter((call) => call.operation === 'create').every((call) => call.args[5] === false));
+    assert.ok(bot.calls.filter((call) => call.operation === 'create').every((call) => call.args[3] === false));
+
+    for (const reward of bot.rewards.values()) {
+        reward.perUserLimitEnabled = true;
+        reward.perStreamLimitEnabled = true;
+    }
+    bot.command('cost', '600');
+    assert.ok([...bot.rewards.values()].every((reward) => reward.perUserLimitEnabled === false));
+    assert.ok([...bot.rewards.values()].every((reward) => reward.perStreamLimitEnabled === false));
+
+    for (const reward of bot.rewards.values()) {
+        reward.perUserLimitEnabled = true;
+        reward.perStreamLimitEnabled = true;
+    }
+    assert.equal(bot.command('setup'), 'MSU rewards configured for 2 packs.');
+    assert.ok([...bot.rewards.values()].every((reward) => reward.perUserLimitEnabled === false));
+    assert.ok([...bot.rewards.values()].every((reward) => reward.perStreamLimitEnabled === false));
+    assert.equal(bot.calls.filter((call) => call.operation === 'create').length, 2);
+    assert.ok(bot.calls.filter((call) => call.operation === 'update').every((call) => call.args[5] === false));
+    assert.ok(bot.calls.filter((call) => call.operation === 'update').every((call) => call.args[3] === false));
 });
 
 test('resetcosts clears accumulated increases and updates active and disabled rewards', () => {
