@@ -110,7 +110,26 @@ A dice-rolling game utilizing channel points
 By default, all viewers can use `!dice` and `!dicestats`. Only the streamer can use `setminroll` and `setmaxroll`. Any mod can use `message`. These permissions can be customized in the dashboard if desired.
 
 ## msu-switcher.js
-Creates channel point rewards that queue MSU pack changes for a multi-pack device.
+Creates channel point rewards that queue MSU pack changes for the Legend of Zelda: A Link to the Past Randomizer's built-in multi-pack switching ability.
+
+Required setup: all desired MSU packs should be combined into one pack. The first one can use the same names, the rest should be renamed in bands of 100. E.g.:
+
+```
+alttp_msu-1.pcm
+alttp_msu-2.pcm
+...
+alttp_msu-60.pcm
+alttp_msu-101.pcm
+alttp_msu-102.pcm
+...
+alttp_msu-160.pcm
+alttp_msu-201.pcm
+alttp_msu-202.pcm
+...
+alttp_msu-260.pcm
+```
+
+Finally, it must NOT be a race rom, or it won't work.
 
 ### Installation and setup
 1. Copy `msu-switcher.js` to `PhantomBot/scripts/custom` and load or restart the bot.
