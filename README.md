@@ -108,3 +108,33 @@ A dice-rolling game utilizing channel points
     Prints daily roll stats based on the system time
 
 By default, all viewers can use `!dice` and `!dicestats`. Only the streamer can use `setminroll` and `setmaxroll`. Any mod can use `message`. These permissions can be customized in the dashboard if desired.
+
+## msu-switcher.js
+Creates channel point rewards that queue MSU pack changes for a multi-pack device.
+
+### Installation and setup
+1. Copy `msu-switcher.js` to `PhantomBot/scripts/custom` and load or restart the bot.
+1. Enable PhantomBot's channel point handler and EventSub connection. Authorize the broadcaster account for channel point reward management, including the `channel:manage:redemptions` scope; Twitch must allow the channel to create channel point rewards. The bot must manage rewards created by its own Twitch application.
+1. Configure `DEFAULT_MSU_ADDRESS` in the script for the reachable SNES WebSocket server; the current default is `192.168.1.19:23074`. Use a non-race ROM with MSU multi-pack support.
+1. As a bot admin, configure and set up rewards, for example:
+
+  ```text
+  !msuswitch cost 500
+  !msuswitch cooldown 60
+  !msuswitch increase 25
+  !msuswitch setup LoZ Remade, Super Mario Galaxy
+  ```
+
+  Cost and cooldown must be positive integers; increase may be zero. Cooldown is in seconds. Setup accepts one to five distinct, comma-separated names and saves them to `addons/msuswitcher.txt`, one pack per line. Alternatively, prepare that file and run `!msuswitch setup` without names. Names must be nonempty and fit in a 45-character reward title including `MSU: `.
+
+### Commands and behavior
+* `!msuswitch list` shows the settings and indexed slots, costs, and enabled status.
+* `!msuswitch resetcosts` clears accumulated increases on all slots, including disabled ones; it does not change the configured increase.
+* `!msuswitch teardown` disables the managed rewards without deleting them.
+* `!msuswitch <index> [address]` queues a direct switch, optionally using another server address.
+
+Slots are numbered from 0 to 4 in file/setup order and must match the device's pack indices. Reward IDs and accumulated increases belong to slot indices, so reordering or renaming packs reuses the existing slot's reward and cost. Setup reuses existing IDs and disables unused slots.
+
+Each successful redemption queue increases only that slot's cost by the configured amount; a failed queue does not increase it. The shared cooldown starts before the queue attempt, including if it fails. Other rewards are paused during the cooldown, and cooldown and pending reward updates are persisted and reconciled when the script starts again. A queued switch takes effect only at a music transition on a non-race ROM, not necessarily immediately.
+
+Check bot logs for connection, Twitch API, or reward update errors. Failed queue attempts are cancelled; after a queue succeeds, an error updating the redemption may require manual status review. Setup or teardown can partially update rewards if an API call fails: inspect the managed rewards and logs, correct the problem, and retry the command. Pending cost, cooldown, and pause updates are retried by the script.

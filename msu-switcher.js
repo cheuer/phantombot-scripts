@@ -35,7 +35,339 @@
     const DEFAULT_MSU_ADDRESS = '192.168.1.19:23074';
     const MSU_PACK_INFO = 'f5be7a';
     const MSU_PACK_REQUEST = 'f5be7c';
-    let packList = [];
+    const PACK_FILE = './addons/msuswitcher.txt';
+    const STATE_TABLE = 'msuSwitcher';
+    const MAX_SLOTS = 5;
+    const MAX_COST = 2147483647;
+    let lock = new Packages.java.util.concurrent.locks.ReentrantLock();
+    let state = JSON.parse($.getSetIniDbString(STATE_TABLE, 'state', '{"baseCost":0,"cooldown":0,"increase":0,"active":false,"slots":[],"seen":[],"cooldownUntil":0,"cooldownSource":"","paused":[]}'));
+
+    function saveState() {
+        $.setIniDbString(STATE_TABLE, 'state', JSON.stringify(state));
+    }
+
+    function checkResponse(response, operation) {
+        if (response.getInt('_http') !== 200 || !response.has('data')) {
+            throw new Error(operation + ' failed: ' + response.toString());
+        }
+        return response;
+    }
+
+    function updateReward(id, title, cost, enabled, paused, cooldown) {
+        return checkResponse($.helix.updateCustomReward(id, title, cost, enabled, paused, null, null, null,
+            null, null, null, null, cooldown === null ? null : true, cooldown, null), 'Update reward ' + id);
+    }
+
+    function createReward(title, cost, cooldown) {
+        var response = checkResponse($.helix.createCustomReward(title, cost, false, null, false, null,
+            false, null, false, null, true, cooldown, false), 'Create reward ' + title);
+        return String(response.getJSONArray('data').getJSONObject(0).getString('id'));
+    }
+
+    function rewardTitle(name) {
+        return 'MSU: ' + name;
+    }
+
+    function packNames(lines) {
+        if (!lines || lines.length < 1 || lines.length > MAX_SLOTS) {
+            throw new Error('Provide between 1 and ' + MAX_SLOTS + ' pack names.');
+        }
+        var names = [];
+        for (var index = 0; index < lines.length; index++) {
+            var name = String(lines[index]).trim();
+            if (!name || rewardTitle(name).length > 45 || /[\r\n]/.test(name)) {
+                throw new Error('Pack names must be nonempty and fit in a 45-character reward title.');
+            }
+            if (names.some(function (previous) { return previous.toLowerCase() === name.toLowerCase(); })) {
+                throw new Error('Pack names must be distinct.');
+            }
+            names.push(name);
+        }
+        return names;
+    }
+
+    function slotCost(slot) {
+        var cost = state.baseCost + (slot.increase || 0);
+        if (!Number.isSafeInteger(cost) || cost < 1 || cost > MAX_COST) {
+            throw new Error('Reward cost is outside the supported range.');
+        }
+        return cost;
+    }
+
+    function setupRewards(names) {
+        if (!state.baseCost || !state.cooldown) {
+            throw new Error('Set cost and cooldown before setup.');
+        }
+        names.forEach(function (name, index) { slotCost(state.slots[index] || {}); });
+        state.active = false;
+        saveState();
+        try {
+            state.slots.forEach(function (slot) {
+                if (slot.id) {
+                    updateReward(slot.id, null, null, false, null, null);
+                    slot.active = false;
+                    slot.pendingDisable = false;
+                    saveState();
+                }
+            });
+            state.slots.forEach(function (slot) {
+                if (slot.id) {
+                    updateReward(slot.id, 'MSU-' + slot.id, null, null, null, null);
+                }
+            });
+            names.forEach(function (name, index) {
+                var slot = state.slots[index];
+                if (!slot) {
+                    slot = { id: '', name: '', increase: 0, active: false };
+                    state.slots[index] = slot;
+                }
+                if (!slot.id) {
+                    slot.id = createReward(rewardTitle(name), slotCost(slot), state.cooldown);
+                    saveState();
+                }
+                updateReward(slot.id, rewardTitle(name), slotCost(slot), false, null, state.cooldown);
+                slot.appliedCost = slotCost(slot);
+                slot.pendingCost = false;
+                slot.pendingCooldown = false;
+                saveState();
+            });
+            names.forEach(function (name, index) { state.slots[index].name = name; });
+            saveState();
+            names.forEach(function (name, index) {
+                var slot = state.slots[index];
+                if (state.cooldownUntil > Date.now() && slot.id !== state.cooldownSource) {
+                    ensurePaused(slot.id);
+                }
+                updateReward(slot.id, null, null, true, null, null);
+                slot.active = true;
+                saveState();
+            });
+            state.active = true;
+            saveState();
+        } catch (error) {
+            state.active = false;
+            state.slots.forEach(function (slot) {
+                if (slot.id) {
+                    try {
+                        updateReward(slot.id, null, null, false, null, null);
+                        slot.active = false;
+                        slot.pendingDisable = false;
+                    } catch (disableError) {
+                        slot.pendingDisable = true;
+                        $.consoleLn('MSU failed to disable reward ' + slot.id + ': ' + disableError);
+                    }
+                }
+            });
+            saveState();
+            throw error;
+        }
+    }
+
+    function updateCosts(includeDisabled) {
+        var failures = [];
+        state.slots.forEach(function (slot) {
+            if (slot.id && (includeDisabled || slot.active)) {
+                slot.pendingCost = true;
+                saveState();
+                try {
+                    updateReward(slot.id, null, slotCost(slot), null, null, null);
+                    slot.appliedCost = slotCost(slot);
+                    slot.pendingCost = false;
+                    saveState();
+                } catch (error) {
+                    failures.push(slot.name + ': ' + error);
+                }
+            }
+        });
+        if (failures.length) {
+            throw new Error(failures.join('; '));
+        }
+    }
+
+    function integerSetting(value, allowZero) {
+        var text = String(value);
+        var number = Number(text);
+        if (!/^\d+$/.test(text) || !Number.isSafeInteger(number) || number > MAX_COST || number < (allowZero ? 0 : 1)) {
+            throw new Error('Expected ' + (allowZero ? 'a non-negative' : 'a positive') + ' integer.');
+        }
+        return number;
+    }
+
+    let maintenanceTimer = null;
+
+    function isRewardPaused(id) {
+        var response = checkResponse($.helix.getCustomReward(null, true), 'Read managed rewards');
+        var rewards = response.getJSONArray('data');
+        for (var index = 0; index < rewards.length(); index++) {
+            var reward = rewards.getJSONObject(index);
+            if (String(reward.getString('id')) === id) {
+                return reward.getBoolean('is_paused');
+            }
+        }
+        throw new Error('Managed reward not found: ' + id);
+    }
+
+    function ensurePaused(id) {
+        if (state.paused.indexOf(id) === -1) {
+            if (isRewardPaused(id)) {
+                return;
+            }
+            state.paused.push(id);
+            saveState();
+        }
+        updateReward(id, null, null, null, true, null);
+    }
+
+    function reconcileCooldown() {
+        var failed = false;
+        if (state.cooldownUntil > Date.now()) {
+            state.slots.forEach(function (slot) {
+                if (state.active && slot.active && slot.id !== state.cooldownSource) {
+                    try {
+                        ensurePaused(slot.id);
+                    } catch (error) {
+                        failed = true;
+                        $.consoleLn('MSU cooldown pause failed: ' + error);
+                    }
+                }
+            });
+        } else if (state.cooldownUntil || state.paused.length) {
+            state.paused.slice().forEach(function (id) {
+                try {
+                    updateReward(id, null, null, null, false, null);
+                    state.paused.splice(state.paused.indexOf(id), 1);
+                    saveState();
+                } catch (error) {
+                    failed = true;
+                    $.consoleLn('MSU cooldown resume failed: ' + error);
+                }
+            });
+            if (!state.paused.length) {
+                state.cooldownUntil = 0;
+                state.cooldownSource = '';
+                saveState();
+            }
+        }
+        return failed;
+    }
+
+    function maintainRewards() {
+        lock.lock();
+        try {
+            var failed = reconcileCooldown();
+            state.slots.forEach(function (slot) {
+                if (slot.id && slot.pendingDisable) {
+                    try {
+                        updateReward(slot.id, null, null, false, null, null);
+                        slot.active = false;
+                        slot.pendingDisable = false;
+                        saveState();
+                    } catch (error) {
+                        failed = true;
+                        $.consoleLn('MSU disable retry failed: ' + error);
+                    }
+                }
+                if (slot.id && slot.pendingCost) {
+                    try {
+                        updateReward(slot.id, null, slotCost(slot), null, null, null);
+                        slot.appliedCost = slotCost(slot);
+                        slot.pendingCost = false;
+                        saveState();
+                    } catch (error) {
+                        failed = true;
+                        $.consoleLn('MSU cost update failed: ' + error);
+                    }
+                }
+                if (slot.id && slot.pendingCooldown) {
+                    try {
+                        updateReward(slot.id, null, null, null, null, state.cooldown);
+                        slot.pendingCooldown = false;
+                        saveState();
+                    } catch (error) {
+                        failed = true;
+                        $.consoleLn('MSU cooldown update failed: ' + error);
+                    }
+                }
+            });
+            if (maintenanceTimer !== null) {
+                clearTimeout(maintenanceTimer);
+                maintenanceTimer = null;
+            }
+            if (failed || state.cooldownUntil > Date.now()) {
+                var delay = failed ? 30000 : 2147483647;
+                if (state.cooldownUntil > Date.now()) {
+                    delay = Math.min(delay, Math.max(1, state.cooldownUntil - Date.now()));
+                }
+                maintenanceTimer = setTimeout(maintainRewards, Math.min(delay, 2147483647));
+            }
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    $.bind('eventSubChannelPointsCustomRewardRedemptionAdd', function (event) {
+        var redemption = event.event();
+        var rewardId = String(redemption.reward().id());
+        var redemptionId = String(redemption.id());
+        var queued = false;
+        lock.lock();
+        try {
+            var index = state.slots.findIndex(function (slot) { return slot.id === rewardId; });
+            if (index === -1 || state.seen.indexOf(redemptionId) !== -1) {
+                return;
+            }
+            if (String(redemption.statusString()).toLowerCase() !== 'unfulfilled') {
+                $.consoleLn('MSU redemption is not unfulfilled: ' + redemptionId);
+                return;
+            }
+            state.seen.push(redemptionId);
+            if (state.seen.length > 500) {
+                state.seen.shift();
+            }
+            saveState();
+            var slot = state.slots[index];
+            if (state.cooldownUntil && state.cooldownUntil <= Date.now()) {
+                reconcileCooldown();
+            }
+            if (!state.active || !slot.active || state.cooldownUntil > Date.now() || state.paused.length) {
+                $.channelpoints.updateRedemptionStatusCancelled(rewardId, redemptionId);
+                return;
+            }
+            state.cooldownUntil = Date.now() + state.cooldown * 1000;
+            state.cooldownSource = rewardId;
+            saveState();
+            maintainRewards();
+            var result = switchMsuPack(index, DEFAULT_MSU_ADDRESS);
+            if (!result.success) {
+                $.consoleLn('MSU pack switch failed: ' + result.error);
+                $.channelpoints.updateRedemptionStatusCancelled(rewardId, redemptionId);
+                $.say('Unable to queue the requested MSU pack.');
+                return;
+            }
+            queued = true;
+            if (state.increase > 0) {
+                if (slotCost(slot) + state.increase <= MAX_COST) {
+                    slot.increase = (slot.increase || 0) + state.increase;
+                    slot.pendingCost = true;
+                    saveState();
+                    maintainRewards();
+                } else {
+                    $.consoleLn('MSU reward cost cannot increase beyond the supported maximum: ' + slot.name);
+                }
+            }
+            $.channelpoints.updateRedemptionStatusFulfilled(rewardId, redemptionId);
+            $.say('MSU pack ' + slot.name + ' will switch at the next track change.');
+        } catch (error) {
+            $.consoleLn('MSU redemption error: ' + error);
+            if (!queued) {
+                $.channelpoints.updateRedemptionStatusCancelled(rewardId, redemptionId);
+            } else {
+                $.consoleLn('MSU request was queued; redemption status may require manual review: ' + redemptionId);
+            }
+        } finally {
+            lock.unlock();
+        }
+    });
 
 
     function toJavaBytes(jsArray) {
@@ -65,6 +397,21 @@
             result.push(b & 0xFF);
         }
         return result;
+    }
+
+    function readHttpLine(input) {
+        var line = '';
+        while (line.length < 8192) {
+            var byte = input.read();
+            if (byte === -1) {
+                throw new Error('Unexpected end of WebSocket handshake');
+            }
+            if (byte === 10) {
+                return line.endsWith('\r') ? line.slice(0, -1) : line;
+            }
+            line += String.fromCharCode(byte);
+        }
+        throw new Error('WebSocket handshake header too long');
     }
 
     function buildWebSocketAccept(key) {
@@ -229,7 +576,8 @@
 
         try {
             $.consoleLn('[MSU DEBUG] Connecting to ' + address.host + ':' + address.port);
-            socket = new Packages.java.net.Socket(address.host, address.port);
+            socket = new Packages.java.net.Socket();
+            socket.connect(new Packages.java.net.InetSocketAddress(address.host, address.port), 10000);
             socket.setSoTimeout(10000);
             input = socket.getInputStream();
             output = socket.getOutputStream();
@@ -249,8 +597,7 @@
             output.flush();
             $.consoleLn('[MSU DEBUG] Handshake sent, waiting for status line');
 
-            var reader = new Packages.java.io.BufferedReader(new Packages.java.io.InputStreamReader(input, 'UTF-8'));
-            var statusLine = reader.readLine();
+            var statusLine = readHttpLine(input);
             $.consoleLn('[MSU DEBUG] Received status line: ' + statusLine);
             if (statusLine === null || String(statusLine).indexOf('101') === -1) {
                 return { success: false, error: 'WebSocket handshake failed: ' + statusLine };
@@ -260,7 +607,7 @@
             var acceptValid = false;
             $.consoleLn('[MSU DEBUG] Expected Sec-WebSocket-Accept: ' + expectedAccept);
             while (true) {
-                var headerLine = reader.readLine();
+                var headerLine = readHttpLine(input);
                 if (headerLine === null) {
                     $.consoleLn('[MSU DEBUG] Header line: null');
                     break;
@@ -358,12 +705,14 @@
                 return { success: false, error: 'Not a multi-pack device' };
             }
 
-            if (target === undefined || target === null || isNaN(target) || target < 0 || target >= num) {
+            if (target === undefined || target === null) {
                 var randomTarget = Math.floor(Math.random() * num);
                 if (randomTarget === cur) {
                     randomTarget = (randomTarget + 1) % num;
                 }
                 target = randomTarget;
+            } else if (typeof target !== 'number' || !isFinite(target) || Math.floor(target) !== target || target < 0 || target >= num) {
+                return { success: false, error: 'Invalid pack index: ' + target };
             }
 
             var payload = [target & 0xFF];
@@ -382,53 +731,138 @@
                     if (!socket.isClosed()) {
                         socket.close();
                     }
-                } catch (ignore) {}
+                } catch (ignore) { }
             }
         }
     }
 
     $.bind('command', function (event) {
         var command = event.getCommand();
-        var sender = event.getSender();
         var args = event.getArgs();
-
-        switch (String(args[0])) {
-            case 'help':
-                $.say('Usage: tbd');
-                break;
-
-            case 'list':
-                // print list of available MSUs
-                break;
-
-            case 'setup':
-                let list = String(args[1]);
-                packList = list.split(',').map(s => s.trim());
-
-                // create channel point redeems for each pack
-
-
-                break;
-
-            default:
-                if (args[0] === undefined || isNaN(args[0])) {
-                    return;
-                }
-                var parsedTarget = parseInt(args[0], 10);
-                var connectionAddress = args[1] ? String(args[1]) : DEFAULT_MSU_ADDRESS;
-                var result = switchMsuPack(parsedTarget, connectionAddress);
-                if (result.success) {
-                    $.say('MSU switched to pack ' + result.pack + '.');
-                } else {
-                    $.consoleLn('MSU pack switch failed: ' + result.error);
-                    $.say('Failed to switch MSU pack');
-                }
-                break;
+        if (String(command).toLowerCase() !== 'msuswitch') {
+            return;
+        }
+        lock.lock();
+        try {
+            switch (String(args[0] || 'help').toLowerCase()) {
+                case 'help':
+                    $.say('!msuswitch setup [name, name, ...] | cost <points> | cooldown <seconds> | increase <points> | resetcosts | list | teardown');
+                    break;
+                case 'list':
+                    $.say('MSU cost: ' + state.baseCost + ', increase: ' + state.increase + ', cooldown: ' + state.cooldown + 's. ' +
+                        state.slots.map(function (slot, index) {
+                            return index + ': ' + slot.name + ' (' + slotCost(slot) + (slot.active && state.active ? ', enabled' : ', disabled') + ')';
+                        }).join('; '));
+                    break;
+                case 'setup':
+                    if (!state.baseCost || !state.cooldown) {
+                        throw new Error('Set cost and cooldown before setup.');
+                    }
+                    var names = args.length > 1 ? packNames(Array.prototype.slice.call(args, 1).join(' ').split(',')) : packNames($.readFile(PACK_FILE));
+                    if (args.length > 1) {
+                        $.saveArray(names, PACK_FILE, false);
+                        if (JSON.stringify($.readFile(PACK_FILE)) !== JSON.stringify(names)) {
+                            throw new Error('Could not save ' + PACK_FILE + '.');
+                        }
+                    }
+                    setupRewards(names);
+                    $.say('MSU rewards configured for ' + names.length + ' packs.');
+                    break;
+                case 'cost':
+                    var newCost = integerSetting(args[1], false);
+                    state.slots.forEach(function (slot) {
+                        if (newCost + (slot.increase || 0) > MAX_COST) {
+                            throw new Error('Cost plus accumulated increase is too large.');
+                        }
+                    });
+                    state.baseCost = newCost;
+                    saveState();
+                    updateCosts(false);
+                    $.say('MSU base cost set to ' + newCost + '.');
+                    break;
+                case 'cooldown':
+                    state.cooldown = integerSetting(args[1], false);
+                    saveState();
+                    var failures = [];
+                    state.slots.forEach(function (slot) {
+                        if (slot.id && slot.active) {
+                            slot.pendingCooldown = true;
+                            saveState();
+                            try {
+                                updateReward(slot.id, null, null, null, null, state.cooldown);
+                                slot.pendingCooldown = false;
+                                saveState();
+                            } catch (error) {
+                                failures.push(slot.name + ': ' + error);
+                            }
+                        }
+                    });
+                    if (failures.length) {
+                        throw new Error(failures.join('; '));
+                    }
+                    $.say('MSU cooldown set to ' + state.cooldown + ' seconds.');
+                    break;
+                case 'increase':
+                    state.increase = integerSetting(args[1], true);
+                    saveState();
+                    $.say('MSU per-redemption increase set to ' + state.increase + '.');
+                    break;
+                case 'resetcosts':
+                    state.slots.forEach(function (slot) { slot.increase = 0; });
+                    saveState();
+                    updateCosts(true);
+                    $.say('MSU reward costs reset.');
+                    break;
+                case 'teardown':
+                    state.active = false;
+                    saveState();
+                    var disableFailures = [];
+                    state.slots.forEach(function (slot) {
+                        if (slot.id) {
+                            try {
+                                updateReward(slot.id, null, null, false, null, null);
+                                slot.active = false;
+                                slot.pendingDisable = false;
+                                saveState();
+                            } catch (error) {
+                                slot.pendingDisable = true;
+                                saveState();
+                                disableFailures.push(slot.name + ': ' + error);
+                            }
+                        }
+                    });
+                    if (disableFailures.length) {
+                        throw new Error(disableFailures.join('; '));
+                    }
+                    $.say('MSU rewards disabled.');
+                    break;
+                default:
+                    if (!/^\d+$/.test(String(args[0]))) {
+                        return;
+                    }
+                    var result = switchMsuPack(Number(args[0]), args[1] ? String(args[1]) : DEFAULT_MSU_ADDRESS);
+                    if (result.success) {
+                        $.say('MSU pack ' + result.pack + ' will switch at the next track change.');
+                    } else {
+                        $.consoleLn('MSU pack switch failed: ' + result.error);
+                        $.say('Failed to switch MSU pack.');
+                    }
+                    break;
+            }
+        } catch (error) {
+            $.consoleLn('MSU switcher: ' + error);
+            $.say('MSU switcher error: ' + error.message);
+        } finally {
+            if (state.slots.some(function (slot) { return slot.pendingCost || slot.pendingCooldown || slot.pendingDisable; })) {
+                maintainRewards();
+            }
+            lock.unlock();
         }
     });
 
     $.bind('initReady', function () {
         $.registerChatCommand('./custom/msu-switcher.js', 'msuswitch', $.PERMISSION.Admin);
+        maintainRewards();
     });
 
 })();
